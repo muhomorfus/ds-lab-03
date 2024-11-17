@@ -1,0 +1,314 @@
+openapi: 3.0.1
+info:
+  title: Reservation service
+  version: "1.0"
+servers:
+  - url: http://localhost:8080
+paths:
+  /manage/health:
+    get:
+      summary: Проверка живости сервиса
+      operationId: health
+      responses:
+        "200":
+          description: Сервис жив
+
+  /api/v1/reservations:
+    get:
+      summary: Получить информацию по всем взятым в прокат книгам пользователя
+      operationId: list
+      parameters:
+        - name: X-User-Name
+          in: header
+          description: Имя пользователя
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Информация по всем взятым в прокат книгам
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/BookReservationResponse"
+
+    post:
+      summary: Взять книгу в библиотеке
+      operationId: Create
+      parameters:
+        - name: X-User-Name
+          in: header
+          description: Имя пользователя
+          required: true
+          schema:
+            type: string
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/TakeBookRequest"
+      responses:
+        "200":
+          description: Информация о бронировании
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/TakeBookResponse"
+        "400":
+          description: Ошибка валидации данных
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ValidationErrorResponse"
+
+  /api/v1/reservations/{reservationUid}:
+    get:
+      summary: Получить информацию конкретно взятому бронированию
+      operationId: get
+      parameters:
+        - name: reservationUid
+          in: path
+          description: UUID бронирования
+          required: true
+          schema:
+            type: string
+            format: uuid
+        - name: X-User-Name
+          in: header
+          description: Имя пользователя
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Информация по бронированию
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/BookReservationResponse"
+        "404":
+          description: Бронирование не найдено
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /api/v1/reservations/{reservationUid}/return:
+    post:
+      summary: Вернуть книгу
+      operationId: Finish
+      parameters:
+        - name: reservationUid
+          in: path
+          description: UUID бронирования
+          required: true
+          schema:
+            type: string
+            format: uuid
+        - name: X-User-Name
+          in: header
+          description: Имя пользователя
+          required: true
+          schema:
+            type: string
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/FinishReservationRequest"
+      responses:
+        "200":
+          description: Книга успешно возвращена
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/FinishReservationResponse"
+        "404":
+          description: Бронирование не найдено
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+components:
+  schemas:
+    BookReservationResponse:
+      type: object
+      required:
+        - reservationUid
+        - status
+        - startDate
+        - tillDate
+        - bookUid
+        - libraryUid
+      example:
+        {
+          "reservationUid": "f464ca3a-fcf7-4e3f-86f0-76c7bba96f72",
+          "status": "RENTED",
+          "startDate": "2021-10-09",
+          "tillDate": "2021-10-11",
+          "bookUid": "f7cdc58f-2caf-4b15-9727-f89dcc629b27",
+          "libraryUid": "83575e12-7ce0-48ee-9931-51919ff3c9ee"
+        }
+      properties:
+        reservationUid:
+          type: string
+          description: UUID бронирования
+          format: uuid
+        status:
+          type: string
+          description: Статус бронирования книги
+          enum:
+            - RENTED
+            - RETURNED
+            - EXPIRED
+        startDate:
+          type: string
+          description: Дата начала бронирования
+          format: ISO 8601
+        tillDate:
+          type: string
+          description: Дата окончания бронирования
+          format: ISO 8601
+        bookUid:
+          type: string
+          description: UUID книги
+          format: uuid
+        libraryUid:
+          type: string
+          description: UUID библиотеки
+          format: uuid
+
+    TakeBookRequest:
+      type: object
+      required:
+        - bookUid
+        - libraryUid
+        - tillDate
+      example:
+        {
+          "bookUid": "f7cdc58f-2caf-4b15-9727-f89dcc629b27",
+          "libraryUid": "83575e12-7ce0-48ee-9931-51919ff3c9ee",
+          "tillDate": "2021-10-11"
+        }
+      properties:
+        bookUid:
+          type: string
+          description: UUID книги
+          format: uuid
+        libraryUid:
+          type: string
+          description: UUID библиотеки
+          format: uuid
+        tillDate:
+          type: string
+          description: Дата окончания бронирования
+          format: ISO 8601
+
+    TakeBookResponse:
+      type: object
+      required:
+        - reservationUid
+        - status
+        - startDate
+        - tillDate
+        - bookUid
+        - libraryUid
+      example:
+        {
+          "reservationUid": "f464ca3a-fcf7-4e3f-86f0-76c7bba96f72",
+          "status": "RENTED",
+          "startDate": "2021-10-09",
+          "tillDate": "2021-10-11",
+          "bookUid": "f7cdc58f-2caf-4b15-9727-f89dcc629b27",
+          "libraryUid": "83575e12-7ce0-48ee-9931-51919ff3c9ee"
+        }
+      properties:
+        reservationUid:
+          type: string
+          description: UUID бронирования
+          format: uuid
+        status:
+          type: string
+          description: Статус бронирования книги
+          enum:
+            - RENTED
+            - RETURNED
+            - EXPIRED
+            - LOST
+        startDate:
+          type: string
+          description: Дата начала бронирования
+          format: ISO 8601
+        tillDate:
+          type: string
+          description: Дата окончания бронирования
+          format: ISO 8601
+        bookUid:
+          type: string
+          description: UUID книги
+          format: uuid
+        libraryUid:
+          type: string
+          description: UUID библиотеки
+          format: uuid
+
+    FinishReservationRequest:
+      type: object
+      required:
+        - date
+      example:
+        {
+          "date": "2021-10-11"
+        }
+      properties:
+        date:
+          type: string
+          description: Дата возврата
+          format: ISO 8601
+
+    FinishReservationResponse:
+      type: object
+      required:
+        - violation
+      properties:
+        violation:
+          type: boolean
+          description: Нарушены ли правила окончания брони
+
+    ErrorDescription:
+      type: object
+      required:
+        - field
+        - error
+      properties:
+        field:
+          type: string
+        error:
+          type: string
+
+    ErrorResponse:
+      type: object
+      required:
+        - message
+      properties:
+        message:
+          type: string
+          description: Информация об ошибке
+
+    ValidationErrorResponse:
+      type: object
+      required:
+        - message
+        - errors
+      properties:
+        message:
+          type: string
+          description: Информация об ошибке
+        errors:
+          type: array
+          description: Массив полей с описанием ошибки
+          items:
+            $ref: "#/components/schemas/ErrorDescription"

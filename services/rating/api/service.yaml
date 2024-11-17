@@ -1,0 +1,105 @@
+openapi: 3.0.1
+info:
+  title: Rating service
+  version: "1.0"
+servers:
+  - url: http://localhost:8080
+paths:
+  /manage/health:
+    get:
+      summary: Проверка живости сервиса
+      operationId: health
+      responses:
+        "200":
+          description: Сервис жив
+
+  /api/v1/rating:
+    get:
+      summary: Получить информацию по рейтингу пользователя
+      operationId: get
+      parameters:
+        - name: X-User-Name
+          in: header
+          description: Имя пользователя
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Информация рейтингу пользователя
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Rating"
+
+  /api/v1/rating/violation:
+    post:
+      summary: Опустить или поднять рейтинг пользователя в зависимости от нарушений
+      operationId: saveViolations
+      parameters:
+        - name: X-User-Name
+          in: header
+          description: Имя пользователя
+          required: true
+          schema:
+            type: string
+        - name: count
+          in: query
+          required: true
+          schema:
+            type: integer
+      responses:
+        "204":
+          description: Рейтинг опущен
+
+components:
+  schemas:
+    Rating:
+      type: object
+      required:
+        - stars
+      example:
+        {
+          "stars": 75
+        }
+      properties:
+        stars:
+          type: integer
+          description: Количество здесь у пользователя
+          minimum: 0
+          maximum: 100
+
+    ErrorDescription:
+      type: object
+      required:
+        - field
+        - error
+      properties:
+        field:
+          type: string
+        error:
+          type: string
+
+    ErrorResponse:
+      type: object
+      required:
+        - message
+      properties:
+        message:
+          type: string
+          description: Информация об ошибке
+
+    ValidationErrorResponse:
+      type: object
+      required:
+        - message
+        - errors
+      properties:
+        message:
+          type: string
+          description: Информация об ошибке
+        errors:
+          type: array
+          description: Массив полей с описанием ошибки
+          items:
+            $ref: "#/components/schemas/ErrorDescription"

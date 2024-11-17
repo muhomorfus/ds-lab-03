@@ -1,0 +1,5 @@
+package: library
+generate:
+  client: true
+  models: true
+output: openapi.go

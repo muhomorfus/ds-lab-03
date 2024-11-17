@@ -1,0 +1,5 @@
+package: reservation
+generate:
+  client: true
+  models: true
+output: openapi.go

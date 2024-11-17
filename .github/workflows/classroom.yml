@@ -8,7 +8,62 @@ on:
       - master
 jobs:
   build:
+    name: Build
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Setup Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: "1.23.2"
+
+      - name: Get dependencies
+        working-directory: ./services
+        run: go mod tidy
+
+      - name: Build library
+        working-directory: ./services
+        run: go build ./library/cmd/service/main.go
+
+      - name: Build rating
+        working-directory: ./services
+        run: go build ./rating/cmd/service/main.go
+
+      - name: Build reservation
+        working-directory: ./services
+        run: go build ./reservation/cmd/service/main.go
+
+      - name: Build gateway
+        working-directory: ./services
+        run: go build ./gateway/cmd/service/main.go
+
+  test:
+    name: Test
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Setup Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: "1.23.2"
+
+      - name: Get dependencies
+        working-directory: ./services
+        run: go mod tidy
+
+      - name: Test all
+        working-directory: ./services
+        run: go test -cover ./...
+
+  autograding:
     name: Autograding
+    needs: [ "build", "test" ]
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v3
@@ -16,8 +71,6 @@ jobs:
           fetch-depth: 0
 
       - uses: docker/setup-buildx-action@v2
-
-      # TODO build and run unit tests
 
       - name: Build images
         timeout-minutes: 10
@@ -31,29 +84,17 @@ jobs:
         env:
           WAIT_PORTS: 8080,8070,8060,8050
 
-      # TODO setup variant, service and port
-
       - name: Run API Tests
         timeout-minutes: 5
         run: ./scripts/test-script.sh
         env:
-          VARIANT: <variant>
-          SERVICE_NAME: <your service name>
-          PORT_NUMBER: <port number>
+          VARIANT: v4
+          SERVICE_NAME: rating
+          PORT_NUMBER: 8050
 
       - uses: education/autograding@v1
         id: autograder
         continue-on-error: true
-
-      - name: Github auto grader mark
-        uses: Romanow/google-sheet-autograder-marker@v1.0
-        with:
-          google_token: ${{secrets.GOOGLE_API_KEY}}
-          sheet_id: "1xkgjUX6Qmk7rdJG-QPOToav-HWWtthJjnShIKnw3oIY"
-          homework_number: 3
-          user_column: 'D'
-          column_offset: 'F'
-          mark: "'+"
 
       - name: Stop containers
         if: always()

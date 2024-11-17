@@ -1,20 +1,107 @@
-version: "3"
 services:
-  postgres:
+  gateway:
+    build:
+      context: ./services
+      dockerfile: ../Dockerfile
+    entrypoint: /opt/gateway
+    restart: on-failure
+    networks:
+      - ds
+    environment:
+      - LIBRARY_ADDRESS=http://library
+      - RATING_ADDRESS=http://rating
+      - RESERVATION_ADDRESS=http://reservation
+      - PORT=80
+    ports:
+      - "8080:80"
+
+  reservation-postgres:
     image: library/postgres:13
-    container_name: postgres
     restart: on-failure
     environment:
-      POSTGRES_USER: postgres
-      POSTGRES_PASSWORD: "postgres"
+      POSTGRES_USER: program
+      POSTGRES_PASSWORD: test
       POSTGRES_DB: postgres
-    volumes:
-      - db-data:/var/lib/postgresql/data
-      - ./postgres/:/docker-entrypoint-initdb.d/
+    networks:
+      - ds
+
+  reservation:
+    build:
+      context: ./services
+      dockerfile: ../Dockerfile
+    entrypoint: /opt/reservation
+    restart: on-failure
+    networks:
+      - ds
+    environment:
+      - PGHOST=reservation-postgres
+      - PGPORT=5432
+      - PGUSER=program
+      - PGPASSWORD=test
+      - PGDB=postgres
+      - PGSSL=false
+      - PORT=80
     ports:
-      - "5432:5432"
+      - "8070:80"
 
-# TODO добавить сервисы
+  library-postgres:
+    image: library/postgres:13
+    restart: on-failure
+    environment:
+      POSTGRES_USER: program
+      POSTGRES_PASSWORD: test
+      POSTGRES_DB: postgres
+    networks:
+      - ds
 
-volumes:
-  db-data:
+  library:
+    build:
+      context: ./services
+      dockerfile: ../Dockerfile
+    entrypoint: /opt/library
+    restart: on-failure
+    networks:
+      - ds
+    environment:
+      - PGHOST=library-postgres
+      - PGPORT=5432
+      - PGUSER=program
+      - PGPASSWORD=test
+      - PGDB=postgres
+      - PGSSL=false
+      - PORT=80
+    ports:
+      - "8060:80"
+
+  rating-postgres:
+    image: library/postgres:13
+    restart: on-failure
+    environment:
+      POSTGRES_USER: program
+      POSTGRES_PASSWORD: test
+      POSTGRES_DB: postgres
+    networks:
+      - ds
+
+  rating:
+    build:
+      context: ./services
+      dockerfile: ../Dockerfile
+    entrypoint: /opt/rating
+    restart: on-failure
+    networks:
+      - ds
+    environment:
+      - PGHOST=rating-postgres
+      - PGPORT=5432
+      - PGUSER=program
+      - PGPASSWORD=test
+      - PGDB=postgres
+      - PGSSL=false
+      - PORT=80
+    ports:
+      - "8050:80"
+
+networks:
+  ds:
+    driver: bridge
