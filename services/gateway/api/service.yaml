@@ -46,6 +46,12 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/LibraryPaginationResponse"
+        "503":
+          description: Сервисы недоступны
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
 
   /api/v1/libraries/{libraryUid}/books:
     get:
@@ -86,6 +92,12 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/LibraryBookPaginationResponse"
+        "503":
+          description: Сервисы недоступны
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
 
   /api/v1/reservations:
     get:
@@ -109,6 +121,12 @@ paths:
                 type: array
                 items:
                   $ref: "#/components/schemas/BookReservationResponse"
+        "503":
+          description: Сервисы недоступны
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
 
     post:
       summary: Взять книгу в библиотеке
@@ -140,6 +158,12 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/ValidationErrorResponse"
+        "503":
+          description: Сервисы недоступны
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
 
   /api/v1/reservations/{reservationUid}/return:
     post:
@@ -175,6 +199,12 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/ErrorResponse"
+        "503":
+          description: Сервисы недоступны
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
 
   /api/v1/rating:
     get:
@@ -196,6 +226,12 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/UserRatingResponse"
+        "503":
+          description: Сервисы недоступны
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
 
 components:
   schemas:

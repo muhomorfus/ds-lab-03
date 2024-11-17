@@ -562,6 +562,15 @@ func (response ListLibraries200JSONResponse) VisitListLibrariesResponse(w http.R
 	return json.NewEncoder(w).Encode(response)
 }
 
+type ListLibraries503JSONResponse ErrorResponse
+
+func (response ListLibraries503JSONResponse) VisitListLibrariesResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(503)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
 type ListBooksRequestObject struct {
 	LibraryUid openapi_types.UUID `json:"libraryUid"`
 	Params     ListBooksParams
@@ -576,6 +585,15 @@ type ListBooks200JSONResponse LibraryBookPaginationResponse
 func (response ListBooks200JSONResponse) VisitListBooksResponse(w http.ResponseWriter) error {
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(200)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type ListBooks503JSONResponse ErrorResponse
+
+func (response ListBooks503JSONResponse) VisitListBooksResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(503)
 
 	return json.NewEncoder(w).Encode(response)
 }
@@ -597,6 +615,15 @@ func (response GetRating200JSONResponse) VisitGetRatingResponse(w http.ResponseW
 	return json.NewEncoder(w).Encode(response)
 }
 
+type GetRating503JSONResponse ErrorResponse
+
+func (response GetRating503JSONResponse) VisitGetRatingResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(503)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
 type ListReservationsRequestObject struct {
 	Params ListReservationsParams
 }
@@ -610,6 +637,15 @@ type ListReservations200JSONResponse []BookReservationResponse
 func (response ListReservations200JSONResponse) VisitListReservationsResponse(w http.ResponseWriter) error {
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(200)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type ListReservations503JSONResponse ErrorResponse
+
+func (response ListReservations503JSONResponse) VisitListReservationsResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(503)
 
 	return json.NewEncoder(w).Encode(response)
 }
@@ -641,6 +677,15 @@ func (response TakeBook400JSONResponse) VisitTakeBookResponse(w http.ResponseWri
 	return json.NewEncoder(w).Encode(response)
 }
 
+type TakeBook503JSONResponse ErrorResponse
+
+func (response TakeBook503JSONResponse) VisitTakeBookResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(503)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
 type ReturnBookRequestObject struct {
 	ReservationUid openapi_types.UUID `json:"reservationUid"`
 	Params         ReturnBookParams
@@ -664,6 +709,15 @@ type ReturnBook404JSONResponse ErrorResponse
 func (response ReturnBook404JSONResponse) VisitReturnBookResponse(w http.ResponseWriter) error {
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(404)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type ReturnBook503JSONResponse ErrorResponse
+
+func (response ReturnBook503JSONResponse) VisitReturnBookResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(503)
 
 	return json.NewEncoder(w).Encode(response)
 }

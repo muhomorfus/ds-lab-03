@@ -141,6 +141,12 @@ type GetParams struct {
 	XUserName string `json:"X-User-Name"`
 }
 
+// CancelParams defines parameters for Cancel.
+type CancelParams struct {
+	// XUserName Имя пользователя
+	XUserName string `json:"X-User-Name"`
+}
+
 // FinishParams defines parameters for Finish.
 type FinishParams struct {
 	// XUserName Имя пользователя
@@ -164,6 +170,9 @@ type ServerInterface interface {
 	// Получить информацию конкретно взятому бронированию
 	// (GET /api/v1/reservations/{reservationUid})
 	Get(ctx echo.Context, reservationUid openapi_types.UUID, params GetParams) error
+	// Отменить бронирование
+	// (POST /api/v1/reservations/{reservationUid}/cancel)
+	Cancel(ctx echo.Context, reservationUid openapi_types.UUID, params CancelParams) error
 	// Вернуть книгу
 	// (POST /api/v1/reservations/{reservationUid}/return)
 	Finish(ctx echo.Context, reservationUid openapi_types.UUID, params FinishParams) error
@@ -277,6 +286,44 @@ func (w *ServerInterfaceWrapper) Get(ctx echo.Context) error {
 	return err
 }
 
+// Cancel converts echo context to params.
+func (w *ServerInterfaceWrapper) Cancel(ctx echo.Context) error {
+	var err error
+	// ------------- Path parameter "reservationUid" -------------
+	var reservationUid openapi_types.UUID
+
+	err = runtime.BindStyledParameterWithOptions("simple", "reservationUid", ctx.Param("reservationUid"), &reservationUid, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true})
+	if err != nil {
+		return echo.NewHTTPError(http.StatusBadRequest, fmt.Sprintf("Invalid format for parameter reservationUid: %s", err))
+	}
+
+	// Parameter object where we will unmarshal all parameters from the context
+	var params CancelParams
+
+	headers := ctx.Request().Header
+	// ------------- Required header parameter "X-User-Name" -------------
+	if valueList, found := headers[http.CanonicalHeaderKey("X-User-Name")]; found {
+		var XUserName string
+		n := len(valueList)
+		if n != 1 {
+			return echo.NewHTTPError(http.StatusBadRequest, fmt.Sprintf("Expected one value for X-User-Name, got %d", n))
+		}
+
+		err = runtime.BindStyledParameterWithOptions("simple", "X-User-Name", valueList[0], &XUserName, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: true})
+		if err != nil {
+			return echo.NewHTTPError(http.StatusBadRequest, fmt.Sprintf("Invalid format for parameter X-User-Name: %s", err))
+		}
+
+		params.XUserName = XUserName
+	} else {
+		return echo.NewHTTPError(http.StatusBadRequest, fmt.Sprintf("Header parameter X-User-Name is required, but not found"))
+	}
+
+	// Invoke the callback with all the unmarshaled arguments
+	err = w.Handler.Cancel(ctx, reservationUid, params)
+	return err
+}
+
 // Finish converts echo context to params.
 func (w *ServerInterfaceWrapper) Finish(ctx echo.Context) error {
 	var err error
@@ -355,6 +402,7 @@ func RegisterHandlersWithBaseURL(router EchoRouter, si ServerInterface, baseURL 
 	router.GET(baseURL+"/api/v1/reservations", wrapper.List)
 	router.POST(baseURL+"/api/v1/reservations", wrapper.Create)
 	router.GET(baseURL+"/api/v1/reservations/:reservationUid", wrapper.Get)
+	router.POST(baseURL+"/api/v1/reservations/:reservationUid/cancel", wrapper.Cancel)
 	router.POST(baseURL+"/api/v1/reservations/:reservationUid/return", wrapper.Finish)
 	router.GET(baseURL+"/manage/health", wrapper.Health)
 
@@ -431,6 +479,23 @@ func (response Get404JSONResponse) VisitGetResponse(w http.ResponseWriter) error
 	return json.NewEncoder(w).Encode(response)
 }
 
+type CancelRequestObject struct {
+	ReservationUid openapi_types.UUID `json:"reservationUid"`
+	Params         CancelParams
+}
+
+type CancelResponseObject interface {
+	VisitCancelResponse(w http.ResponseWriter) error
+}
+
+type Cancel204Response struct {
+}
+
+func (response Cancel204Response) VisitCancelResponse(w http.ResponseWriter) error {
+	w.WriteHeader(204)
+	return nil
+}
+
 type FinishRequestObject struct {
 	ReservationUid openapi_types.UUID `json:"reservationUid"`
 	Params         FinishParams
@@ -485,6 +550,9 @@ type StrictServerInterface interface {
 	// Получить информацию конкретно взятому бронированию
 	// (GET /api/v1/reservations/{reservationUid})
 	Get(ctx context.Context, request GetRequestObject) (GetResponseObject, error)
+	// Отменить бронирование
+	// (POST /api/v1/reservations/{reservationUid}/cancel)
+	Cancel(ctx context.Context, request CancelRequestObject) (CancelResponseObject, error)
 	// Вернуть книгу
 	// (POST /api/v1/reservations/{reservationUid}/return)
 	Finish(ctx context.Context, request FinishRequestObject) (FinishResponseObject, error)
@@ -581,6 +649,32 @@ func (sh *strictHandler) Get(ctx echo.Context, reservationUid openapi_types.UUID
 		return err
 	} else if validResponse, ok := response.(GetResponseObject); ok {
 		return validResponse.VisitGetResponse(ctx.Response())
+	} else if response != nil {
+		return fmt.Errorf("unexpected response type: %T", response)
+	}
+	return nil
+}
+
+// Cancel operation middleware
+func (sh *strictHandler) Cancel(ctx echo.Context, reservationUid openapi_types.UUID, params CancelParams) error {
+	var request CancelRequestObject
+
+	request.ReservationUid = reservationUid
+	request.Params = params
+
+	handler := func(ctx echo.Context, request interface{}) (interface{}, error) {
+		return sh.ssi.Cancel(ctx.Request().Context(), request.(CancelRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "Cancel")
+	}
+
+	response, err := handler(ctx, request)
+
+	if err != nil {
+		return err
+	} else if validResponse, ok := response.(CancelResponseObject); ok {
+		return validResponse.VisitCancelResponse(ctx.Response())
 	} else if response != nil {
 		return fmt.Errorf("unexpected response type: %T", response)
 	}

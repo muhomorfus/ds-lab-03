@@ -143,6 +143,12 @@ type GetParams struct {
 	XUserName string `json:"X-User-Name"`
 }
 
+// CancelParams defines parameters for Cancel.
+type CancelParams struct {
+	// XUserName Имя пользователя
+	XUserName string `json:"X-User-Name"`
+}
+
 // FinishParams defines parameters for Finish.
 type FinishParams struct {
 	// XUserName Имя пользователя
@@ -239,6 +245,9 @@ type ClientInterface interface {
 	// Get request
 	Get(ctx context.Context, reservationUid openapi_types.UUID, params *GetParams, reqEditors ...RequestEditorFn) (*http.Response, error)
 
+	// Cancel request
+	Cancel(ctx context.Context, reservationUid openapi_types.UUID, params *CancelParams, reqEditors ...RequestEditorFn) (*http.Response, error)
+
 	// FinishWithBody request with any body
 	FinishWithBody(ctx context.Context, reservationUid openapi_types.UUID, params *FinishParams, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error)
 
@@ -286,6 +295,18 @@ func (c *Client) Create(ctx context.Context, params *CreateParams, body CreateJS
 
 func (c *Client) Get(ctx context.Context, reservationUid openapi_types.UUID, params *GetParams, reqEditors ...RequestEditorFn) (*http.Response, error) {
 	req, err := NewGetRequest(c.Server, reservationUid, params)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+func (c *Client) Cancel(ctx context.Context, reservationUid openapi_types.UUID, params *CancelParams, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewCancelRequest(c.Server, reservationUid, params)
 	if err != nil {
 		return nil, err
 	}
@@ -472,6 +493,53 @@ func NewGetRequest(server string, reservationUid openapi_types.UUID, params *Get
 	return req, nil
 }
 
+// NewCancelRequest generates requests for Cancel
+func NewCancelRequest(server string, reservationUid openapi_types.UUID, params *CancelParams) (*http.Request, error) {
+	var err error
+
+	var pathParam0 string
+
+	pathParam0, err = runtime.StyleParamWithLocation("simple", false, "reservationUid", runtime.ParamLocationPath, reservationUid)
+	if err != nil {
+		return nil, err
+	}
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/api/v1/reservations/%s/cancel", pathParam0)
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	req, err := http.NewRequest("POST", queryURL.String(), nil)
+	if err != nil {
+		return nil, err
+	}
+
+	if params != nil {
+
+		var headerParam0 string
+
+		headerParam0, err = runtime.StyleParamWithLocation("simple", false, "X-User-Name", runtime.ParamLocationHeader, params.XUserName)
+		if err != nil {
+			return nil, err
+		}
+
+		req.Header.Set("X-User-Name", headerParam0)
+
+	}
+
+	return req, nil
+}
+
 // NewFinishRequest calls the generic Finish builder with application/json body
 func NewFinishRequest(server string, reservationUid openapi_types.UUID, params *FinishParams, body FinishJSONRequestBody) (*http.Request, error) {
 	var bodyReader io.Reader
@@ -613,6 +681,9 @@ type ClientWithResponsesInterface interface {
 	// GetWithResponse request
 	GetWithResponse(ctx context.Context, reservationUid openapi_types.UUID, params *GetParams, reqEditors ...RequestEditorFn) (*GetResponse, error)
 
+	// CancelWithResponse request
+	CancelWithResponse(ctx context.Context, reservationUid openapi_types.UUID, params *CancelParams, reqEditors ...RequestEditorFn) (*CancelResponse, error)
+
 	// FinishWithBodyWithResponse request with any body
 	FinishWithBodyWithResponse(ctx context.Context, reservationUid openapi_types.UUID, params *FinishParams, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*FinishResponse, error)
 
@@ -684,6 +755,27 @@ func (r GetResponse) Status() string {
 
 // StatusCode returns HTTPResponse.StatusCode
 func (r GetResponse) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
+type CancelResponse struct {
+	Body         []byte
+	HTTPResponse *http.Response
+}
+
+// Status returns HTTPResponse.Status
+func (r CancelResponse) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r CancelResponse) StatusCode() int {
 	if r.HTTPResponse != nil {
 		return r.HTTPResponse.StatusCode
 	}
@@ -767,6 +859,15 @@ func (c *ClientWithResponses) GetWithResponse(ctx context.Context, reservationUi
 		return nil, err
 	}
 	return ParseGetResponse(rsp)
+}
+
+// CancelWithResponse request returning *CancelResponse
+func (c *ClientWithResponses) CancelWithResponse(ctx context.Context, reservationUid openapi_types.UUID, params *CancelParams, reqEditors ...RequestEditorFn) (*CancelResponse, error) {
+	rsp, err := c.Cancel(ctx, reservationUid, params, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseCancelResponse(rsp)
 }
 
 // FinishWithBodyWithResponse request with arbitrary body returning *FinishResponse
@@ -882,6 +983,22 @@ func ParseGetResponse(rsp *http.Response) (*GetResponse, error) {
 		}
 		response.JSON404 = &dest
 
+	}
+
+	return response, nil
+}
+
+// ParseCancelResponse parses an HTTP response from a CancelWithResponse call
+func ParseCancelResponse(rsp *http.Response) (*CancelResponse, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &CancelResponse{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
 	}
 
 	return response, nil

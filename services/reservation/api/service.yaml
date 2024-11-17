@@ -132,6 +132,28 @@ paths:
               schema:
                 $ref: "#/components/schemas/ErrorResponse"
 
+  /api/v1/reservations/{reservationUid}/cancel:
+    post:
+      summary: Отменить бронирование
+      operationId: Cancel
+      parameters:
+        - name: reservationUid
+          in: path
+          description: UUID бронирования
+          required: true
+          schema:
+            type: string
+            format: uuid
+        - name: X-User-Name
+          in: header
+          description: Имя пользователя
+          required: true
+          schema:
+            type: string
+      responses:
+        "204":
+          description: Бронирование отменено
+
 components:
   schemas:
     BookReservationResponse:

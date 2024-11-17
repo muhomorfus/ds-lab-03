@@ -3,23 +3,27 @@ package openapi
 import (
 	"context"
 	"fmt"
+	"github.com/RohanPoojary/gomq"
 	"github.com/muhomorfus/ds-lab-02/services/gateway/internal/clients/library"
 	"github.com/muhomorfus/ds-lab-02/services/gateway/internal/clients/rating"
 	"github.com/muhomorfus/ds-lab-02/services/gateway/internal/clients/reservation"
 	"github.com/muhomorfus/ds-lab-02/services/gateway/internal/generated"
+	"github.com/muhomorfus/ds-lab-02/services/gateway/internal/models"
 	"github.com/samber/lo"
 	"log/slog"
 	"net/http"
+	"time"
 )
 
 type Server struct {
 	library     *library.ClientWithResponses
 	reservation *reservation.ClientWithResponses
 	rating      *rating.ClientWithResponses
+	broker      gomq.Broker
 }
 
-func New(library *library.ClientWithResponses, reservation *reservation.ClientWithResponses, rating *rating.ClientWithResponses) *Server {
-	return &Server{library: library, reservation: reservation, rating: rating}
+func New(library *library.ClientWithResponses, reservation *reservation.ClientWithResponses, rating *rating.ClientWithResponses, broker gomq.Broker) *Server {
+	return &Server{library: library, reservation: reservation, rating: rating, broker: broker}
 }
 
 func (s *Server) ListLibraries(ctx context.Context, request generated.ListLibrariesRequestObject) (generated.ListLibrariesResponseObject, error) {
@@ -91,7 +95,15 @@ func (s *Server) GetRating(ctx context.Context, request generated.GetRatingReque
 	resp, err := s.rating.GetWithResponse(ctx, &rating.GetParams{XUserName: request.Params.XUserName})
 	if err != nil {
 		logger.Error("get rating", "error", err)
-		return nil, fmt.Errorf("get rating: %w", err)
+		return generated.GetRating503JSONResponse{
+			Message: "Bonus Service unavailable",
+		}, nil
+	}
+
+	if resp.StatusCode() >= http.StatusInternalServerError {
+		return generated.GetRating503JSONResponse{
+			Message: "Bonus Service unavailable",
+		}, nil
 	}
 
 	if resp.JSON200 == nil {
@@ -186,7 +198,15 @@ func (s *Server) TakeBook(ctx context.Context, request generated.TakeBookRequest
 	ratingResp, err := s.rating.GetWithResponse(ctx, &rating.GetParams{XUserName: request.Params.XUserName})
 	if err != nil {
 		logger.Error("get user rating", "error", err)
-		return nil, fmt.Errorf("get user rating: %w", err)
+		return generated.TakeBook503JSONResponse{
+			Message: "Bonus Service unavailable",
+		}, nil
+	}
+
+	if ratingResp.StatusCode() >= http.StatusInternalServerError {
+		return generated.TakeBook503JSONResponse{
+			Message: "Bonus Service unavailable",
+		}, nil
 	}
 
 	if ratingResp.JSON200 == nil {
@@ -226,6 +246,11 @@ func (s *Server) TakeBook(ctx context.Context, request generated.TakeBookRequest
 
 	bookResp, err := s.library.TakeBookWithResponse(ctx, request.Body.LibraryUid, request.Body.BookUid)
 	if err != nil {
+		s.reservation.CancelWithResponse(
+			ctx,
+			reservedResp.JSON200.ReservationUid,
+			&reservation.CancelParams{XUserName: request.Params.XUserName},
+		)
 		logger.Error("take book", "error", err)
 		return nil, fmt.Errorf("decrease book: %w", err)
 	}
@@ -237,6 +262,11 @@ func (s *Server) TakeBook(ctx context.Context, request generated.TakeBookRequest
 	}
 
 	if bookResp.StatusCode() != http.StatusNoContent {
+		s.reservation.CancelWithResponse(
+			ctx,
+			reservedResp.JSON200.ReservationUid,
+			&reservation.CancelParams{XUserName: request.Params.XUserName},
+		)
 		logger.Error("take book unknown status", "status", bookResp.StatusCode())
 		return nil, fmt.Errorf("decrease book: %s", string(bookResp.Body))
 	}
@@ -323,8 +353,29 @@ func (s *Server) ReturnBook(ctx context.Context, request generated.ReturnBookReq
 		Condition: library.ReturnBookRequestCondition(request.Body.Condition),
 	})
 	if err != nil {
+		s.broker.Publish("library.return_book.retry", models.Retry{
+			LibraryUID: reservationResp.JSON200.LibraryUid,
+			BookUUID:   reservationResp.JSON200.BookUid,
+			Condition:  string(request.Body.Condition),
+			Violations: violations,
+			Username:   request.Params.XUserName,
+			Time:       time.Now(),
+		})
 		logger.Error("return book", "error", err)
-		return nil, fmt.Errorf("return book: %w", err)
+		return generated.ReturnBook204Response{}, nil
+	}
+
+	if makeAvailableResp.StatusCode() >= http.StatusInternalServerError {
+		s.broker.Publish("library.return_book.retry", models.Retry{
+			LibraryUID: reservationResp.JSON200.LibraryUid,
+			BookUUID:   reservationResp.JSON200.BookUid,
+			Condition:  string(request.Body.Condition),
+			Violations: violations,
+			Username:   request.Params.XUserName,
+			Time:       time.Now(),
+		})
+		logger.Error("return book unknown status", "status", makeAvailableResp.StatusCode())
+		return generated.ReturnBook204Response{}, nil
 	}
 
 	if makeAvailableResp.JSON200 == nil {
@@ -338,8 +389,29 @@ func (s *Server) ReturnBook(ctx context.Context, request generated.ReturnBookReq
 
 	changeRatingResp, err := s.rating.SaveViolationsWithResponse(ctx, &rating.SaveViolationsParams{XUserName: request.Params.XUserName, Count: violations})
 	if err != nil {
+		s.broker.Publish("rating.save_violations.retry", models.Retry{
+			LibraryUID: reservationResp.JSON200.LibraryUid,
+			BookUUID:   reservationResp.JSON200.BookUid,
+			Condition:  string(request.Body.Condition),
+			Violations: violations,
+			Username:   request.Params.XUserName,
+			Time:       time.Now(),
+		})
 		logger.Error("save violations", "error", err)
-		return nil, fmt.Errorf("save violations: %w", err)
+		return generated.ReturnBook204Response{}, nil
+	}
+
+	if changeRatingResp.StatusCode() >= http.StatusInternalServerError {
+		s.broker.Publish("rating.save_violations.retry", models.Retry{
+			LibraryUID: reservationResp.JSON200.LibraryUid,
+			BookUUID:   reservationResp.JSON200.BookUid,
+			Condition:  string(request.Body.Condition),
+			Violations: violations,
+			Username:   request.Params.XUserName,
+			Time:       time.Now(),
+		})
+		logger.Error("save violations", "status", changeRatingResp.StatusCode())
+		return generated.ReturnBook204Response{}, nil
 	}
 
 	if changeRatingResp.StatusCode() != http.StatusNoContent {

@@ -23,6 +23,18 @@ func (s *Server) Health(ctx context.Context, request generated.HealthRequestObje
 	return generated.Health200Response{}, nil
 }
 
+func (s *Server) Cancel(ctx context.Context, request generated.CancelRequestObject) (generated.CancelResponseObject, error) {
+	logger := slog.With("handler", "Get")
+	query := `delete from reservation where username = $1 and reservation_uid = $2`
+
+	if _, err := s.db.ExecContext(ctx, query, request.Params.XUserName, request.ReservationUid); err != nil {
+		logger.Error("delete reservation from db", "error", err)
+		return nil, fmt.Errorf("delete reservtion from db: %w", err)
+	}
+
+	return generated.Cancel204Response{}, nil
+}
+
 func (s *Server) Get(ctx context.Context, request generated.GetRequestObject) (generated.GetResponseObject, error) {
 	logger := slog.With("handler", "Get")
 	query := `select * from reservation where username = $1 and reservation_uid = $2`

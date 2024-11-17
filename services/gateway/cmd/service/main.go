@@ -3,9 +3,11 @@ package main
 import (
 	"context"
 	"fmt"
+	"github.com/RohanPoojary/gomq"
 	"github.com/kelseyhightower/envconfig"
 	"github.com/labstack/echo/v4"
 	_ "github.com/lib/pq"
+	"github.com/muhomorfus/ds-lab-02/services/gateway/internal/async"
 	"github.com/muhomorfus/ds-lab-02/services/gateway/internal/clients/library"
 	"github.com/muhomorfus/ds-lab-02/services/gateway/internal/clients/rating"
 	"github.com/muhomorfus/ds-lab-02/services/gateway/internal/clients/reservation"
@@ -46,7 +48,12 @@ func run() error {
 		return fmt.Errorf("create reservation client: %w", err)
 	}
 
-	server := openapi.New(libraryClient, reservationClient, ratingClient)
+	broker := gomq.NewAsyncBroker()
+
+	async.ReturnBookRetry(broker, libraryClient)
+	async.SaveViolationsRetry(broker, ratingClient)
+
+	server := openapi.New(libraryClient, reservationClient, ratingClient, broker)
 	router := echo.New()
 	generated.RegisterHandlers(router, generated.NewStrictHandler(server, nil))
 
